@@ -1,0 +1,18 @@
+name = "livekit-agent"
+type = "sandbox"
+description = "LiveKit voice agent worker + token server (uses LiveKit Cloud for media)"
+
+[runtime]
+generation = "mk3"
+memory = 4096
+
+[[runtime.ports]]
+name = "token-server"
+target = 8888
+protocol = "tcp"
+
+[env]
+LIVEKIT_URL = "<your-livekit-cloud-url>"
+LIVEKIT_API_KEY = "<your-livekit-api-key>"
+LIVEKIT_API_SECRET = "<your-livekit-api-secret>"
+OPENAI_API_KEY = "<your-openai-api-key>"

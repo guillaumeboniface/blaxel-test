@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveKit Voice Agent — Blaxel PoC</title>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0;
+           display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #1a1a1a; border-radius: 12px; padding: 2rem; width: 380px;
+            box-shadow: 0 4px 24px rgba(0,0,0,.4); text-align: center; }
+    h1 { font-size: 1.3rem; margin-bottom: .5rem; }
+    p.sub { font-size: .85rem; color: #888; margin-bottom: 1.5rem; }
+    #status { font-size: .9rem; margin-bottom: 1.5rem; color: #aaa; min-height: 1.2em; }
+    button { padding: .7rem 2rem; font-size: 1rem; border: none; border-radius: 8px;
+             cursor: pointer; transition: background .2s; }
+    #connectBtn { background: #3b82f6; color: white; }
+    #connectBtn:hover { background: #2563eb; }
+    #connectBtn:disabled { background: #555; cursor: not-allowed; }
+    #disconnectBtn { background: #ef4444; color: white; display: none; margin-top: .5rem; }
+    #disconnectBtn:hover { background: #dc2626; }
+    .controls { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+    #transcript { margin-top: 1rem; text-align: left; font-size: .85rem; max-height: 200px;
+                  overflow-y: auto; background: #111; border-radius: 8px; padding: .8rem;
+                  display: none; }
+    #transcript p { margin-bottom: .3rem; }
+    .agent { color: #3b82f6; }
+    .user { color: #22c55e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Voice Agent PoC</h1>
+    <p class="sub">LiveKit Cloud + Blaxel Sandbox</p>
+
+    <div id="status">Ready</div>
+    <div class="controls">
+      <button id="connectBtn">Connect</button>
+      <button id="disconnectBtn">Disconnect</button>
+    </div>
+    <div id="transcript"></div>
+  </div>
+
+<script>
+const { Room, RoomEvent } = LivekitClient;
+
+let room = null;
+
+const statusEl      = document.getElementById('status');
+const connectBtn     = document.getElementById('connectBtn');
+const disconnectBtn  = document.getElementById('disconnectBtn');
+const transcriptEl   = document.getElementById('transcript');
+
+function setStatus(msg) { statusEl.textContent = msg; }
+
+function addTranscript(who, text) {
+  transcriptEl.style.display = 'block';
+  const p = document.createElement('p');
+  p.className = who;
+  p.textContent = `${who === 'agent' ? 'Agent' : 'You'}: ${text}`;
+  transcriptEl.appendChild(p);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+connectBtn.addEventListener('click', async () => {
+  connectBtn.disabled = true;
+  setStatus('Fetching token...');
+
+  try {
+    const resp = await fetch(`/token?identity=web-user-${Date.now()}`);
+    const { token, url } = await resp.json();
+
+    setStatus('Connecting to LiveKit Cloud...');
+    room = new Room();
+
+    room.on(RoomEvent.Connected, () => {
+      setStatus('Connected — speak into your microphone');
+      disconnectBtn.style.display = 'inline-block';
+    });
+
+    room.on(RoomEvent.Disconnected, () => {
+      setStatus('Disconnected');
+      connectBtn.disabled = false;
+      disconnectBtn.style.display = 'none';
+    });
+
+    room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
+      for (const seg of segments) {
+        if (seg.final) {
+          const who = participant?.identity?.startsWith('agent') ? 'agent' : 'user';
+          addTranscript(who, seg.text);
+        }
+      }
+    });
+
+    await room.connect(url, token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+  } catch (err) {
+    setStatus(`Error: ${err.message}`);
+    connectBtn.disabled = false;
+  }
+});
+
+disconnectBtn.addEventListener('click', async () => {
+  if (room) {
+    await room.disconnect();
+    room = null;
+  }
+});
+</script>
+</body>
+</html>
